@@ -1,0 +1,460 @@
+---
+title: "HW 4 Code"
+author: "David Segovia"
+date: "10/20/2021"
+output: html_document
+---
+
+
+
+
+
+
+```{r, echo=FALSE}
+
+library(tidyverse)
+library(lubridate)
+library(chron)
+
+
+df2020 <- read_csv("2020.csv") #251,374 × 29
+df2021 <- read_csv("2021.csv") #214,115 × 29
+
+#465,489
+df311 <- rbind(df2020, df2021) # This combines 2020 and 2021 data
+
+
+```
+
+
+
+
+
+Create new column: difference_date_mins to find time to close a case 
+```{r}
+
+df3 <- df311
+df4 <- df311 # drop NA values
+
+df4= df4 %>% 
+drop_na(closed_dt)
+
+
+
+df4$difference_date_mins<- as.numeric(round(with(df4, difftime(closed_dt, open_dt,units="mins")), 1)) # substract open-closed dt with units in minutes
+df4$difference_date_mins <- format(df4$difference_date_mins, scientific=F) #remove scientific notation
+df4$difference_date_mins <- as.numeric(df4$difference_date_mins) # convert to numeric
+
+df4 %>% select(closed_dt, open_dt, difference_date_mins)
+
+
+
+df3$difference_date_mins<- as.numeric(round(with(df3, difftime(closed_dt, open_dt,units="mins")), 1)) # substract open-closed dt with units in minutes
+df3$difference_date_mins <- format(df3$difference_date_mins, scientific=F) #remove scientific notation
+df3$difference_date_mins <- as.numeric(df3$difference_date_mins) # convert to numeric
+
+df3 %>% select(closed_dt, open_dt, difference_date_mins)
+
+```
+
+# 1) How long does it take to complete a request city-wide (hence known as close time)? Please provide 3 metrics to answer this question.
+- Why did you choose the 3 metrics?
+- What does the 3 metrics say collectively? For example, if one of your metrics is the mean, what might that number miss? What other metrics might you want to pull to supplement what the mean misses.
+
+*3 metrics: mean, median, IQR*
+
+
+*I will use the mean, median, and IQR to look at how long it takes to complete a request. *
+
+When looking at the mean, it takes on average 6.49 days to complete a request. By using the mean, we are looking at the average across all the cases that have closed. However, 63,183 cases are still ongoing and haven't gotten resolved and have passed the target date. Thus, we dropped these cases when looking at the mean. This metric does have a disadvantage in outliers, especially since the maximum case almost took a year(~50 weeks) to resolve. This outlier can impact the mean.
+
+When looking at the median, it takes almost 8.62 hrs to complete a request. Outliers doesn't skew the results when using the median. The disadvantage of using the median is that we miss the 25th and 75th percentile. The median can also not be representative of all the values in the dataset.
+
+The Interquartile Range tells us it takes 2.54 days to complete a request. This value has an advantage because it tells us how spread out the data is. When looking at 407,783 values, this can be an advantage. This also is valuable when ignoring extremes. The disadvantage may be that since it only takes into account the 25th and 75th percentile values, we may ignore all of the other values in the dataset since we are only mainly concentrating in the middle set of values.
+
+
+
+```{r}
+
+mean(df3$difference_date_mins, na.rm=TRUE) #9339 mins or ~6.49 days
+duration(9339, "minutes") #mean
+
+
+median(df3$difference_date_mins, na.rm=TRUE) #517 mins or ~8.62 hrs
+duration(517, "minutes") #median
+
+print(IQR(df3$difference_date_mins, na.rm=TRUE)) #3657 mins or ~2.54 days
+duration(3657, "minutes") #IQR
+
+
+df4= subset(df3, difference_date_mins!="NA") #407,783 rows or observations that have closed cases. 
+
+
+
+
+```
+
+
+# 2) Assume that the primary goal of your analysis is to ensure that all city departments have as short of a close time as possible. 
+- What are the 3 departments that the City should focus on? Note the language here. Yes it is vague. It will be up to you to define what “should focus on” is and then conduct your analysis.
+- What are the 3 departments that have done well so far?
+
+
+
+## Mean
+
+```{r}
+### Data manipilation
+viz1= df3 %>%
+  group_by(department) %>%
+  summarize(totalcount = n(),  averagetime= mean(difference_date_mins, na.rm=TRUE)) %>%
+  arrange(desc(averagetime)) # changing the desc to average time
+
+viz1$averagetimemins <- as.numeric(viz1$averagetime)
+viz1$averagetimedays <- viz1$averagetimemins/1440
+
+viz1$averagetimedays <- round(viz1$averagetimedays, digits = 1)
+
+
+### visualize at the mean
+
+viz1 %>%
+  mutate(department = fct_reorder(department, averagetimedays)) %>%
+ggplot() + 
+   geom_point(aes(x = averagetimedays, y = department, size=totalcount)) + 
+  geom_segment( aes(x=0, xend=averagetimedays, y=department, yend=department), color = "blue") +
+  geom_text(aes(x = averagetimedays, y = department,
+label = round(averagetimedays, 2)), size = 2.5, hjust= -1, family= "Arial") +
+   scale_x_continuous( limits = c(0, 100)) +
+  scale_size_continuous(range = c(0, 5)) + 
+  ylab( "Department") + 
+  xlab( "Days") + 
+  labs(title = "Average time in days to close a case by department",
+       subtitle = "Plot size relative to total number of cases per department ") +
+ guides(size=guide_legend("Total number of cases")) + 
+  
+   theme_classic() +
+   theme(
+     plot.title = element_text(face = "bold", size = 16, hjust = 1),
+    plot.subtitle = element_text(face = "italic", size = 14, hjust = 1),
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10, face = "italic"),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin=unit(c(0,-0.2,0,0),"cm") #top, right, bottom, left
+   ) 
+
+
+
+
+```
+
+
+
+
+
+
+## Median
+
+```{r}
+viz2= df3 %>%
+  group_by(department) %>%
+  summarize(totalcount = n(),  mediantime= median(difference_date_mins, na.rm=TRUE)) %>%
+  arrange(desc(mediantime)) # changing the desc to average time
+
+viz2$mediantimemins <- as.numeric(viz2$mediantime)
+viz2$mediantimedays <- viz2$mediantimemins/1440
+
+viz2$mediantimedays <- round(viz2$mediantimedays, digits = 1)
+
+
+### visualize at the median
+
+viz2 %>%
+  mutate(department = fct_reorder(department, mediantimedays)) %>%
+ggplot() + 
+   geom_point(aes(x = mediantimedays, y = department, size=totalcount)) + 
+  geom_segment( aes(x=0, xend=mediantimedays, y=department, yend=department), color = "blue") +
+  geom_text(aes(x = mediantimedays, y = department,
+label = round(mediantimedays, 2)), size = 2.5, hjust= -1, family= "Arial") +
+   scale_x_continuous( limits = c(0, 100)) +
+  scale_size_continuous(range = c(0, 5)) + 
+  guides(size=guide_legend("Total number of cases")) + 
+  ylab( "Department") + 
+  xlab( "Days") + 
+  labs(title = "Median time in days to close a case by department",
+       subtitle = "Plot size relative to total number of cases per department ") +
+
+   theme_classic() +
+   theme(
+     plot.title = element_text(face = "bold", size = 16, hjust = 1),
+    plot.subtitle = element_text(face = "italic", size = 14, hjust = 1),
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10, face = "italic"),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin=unit(c(0,-0.2,0,0),"cm") #top, right, bottom, left
+   ) 
+
+
+```
+
+## Total number of cases
+
+```{r}
+viz3= df3 %>%
+  group_by(department) %>%
+  summarize(totalcount = n()) %>%
+  arrange(desc(totalcount)) # changing the desc to total cases
+
+
+ggplot(data = viz3,
+mapping = aes(x = reorder(as.character(department), -totalcount),  
+y= totalcount)) + 
+geom_col(fill = "#457b9d", color = "#1d3557", size = 2)  + 
+  
+   geom_text(aes(x = department, y = totalcount,
+label = round(totalcount, 2)), size = 3, hjust=0.5 , vjust= -0.8 , family= "Arial") +
+  
+labs( x= "City of Boston Department", 
+        y= "Total Cases", 
+        title = "Number of cases by department") + 
+  theme(
+plot.title = element_text(face = "bold", size = 16), plot.subtitle = element_text(face = "italic", size = 14),
+axis.title = element_text(size = 10, face = "bold"), axis.text = element_text(size = 7, face = "bold"), axis.line = element_blank(),
+axis.ticks = element_blank())
+
+```
+
+## Number of overdue cases per department
+
+```{r}
+viz7= df3 %>% 
+  group_by(department) %>%
+  summarize(ongoingcases= sum(is.na(closed_dt)))  %>%
+  arrange(desc(ongoingcases))
+
+ggplot(data = viz7,
+mapping = aes(x = reorder(as.character(department), -ongoingcases),  
+y= ongoingcases)) + 
+geom_col(fill = "#457b9d", color = "#1d3557", size = 2)  + 
+  
+   geom_text(aes(x = department, y = ongoingcases,
+label = round(ongoingcases, 2)), size = 3, hjust=0 , vjust= -0.5 , family= "Arial") +
+  
+labs( x= "City of Boston Department", 
+        y= "Number of cases", 
+        title = "Total number of cases overdue by department",
+        subtitle = "Line represents average overdue cases across all departments") + 
+        geom_hline(yintercept = mean(viz7$ongoingcases, na.rm = TRUE)) + 
+  theme(
+plot.title = element_text(face = "bold", size = 16), plot.subtitle = element_text(face = "italic", size = 14),
+axis.title = element_text(size = 10, face = "bold"), axis.text = element_text(size = 6, face = "bold"), axis.line = element_blank(),
+axis.ticks = element_blank())
+
+
+```
+
+
+
+
+# 3) In words, describe 2 confounding factors that can impact the close time of a ticket. You must be able to calculate these confounding factors from the dataset
+
+
+```{r}
+viz6= df3 %>%
+  group_by(source) %>%
+summarize(totalcount = n(), averagetime= mean(difference_date_mins, na.rm=TRUE)) %>%
+  arrange(desc(averagetime))
+
+
+viz6$averagetimemins <- as.numeric(viz6$averagetime)
+
+
+viz6$averagetimedays <- viz6$averagetimemins/1440
+
+viz6$averagetimedays <- round(viz6$averagetimedays, digits = 1)
+
+
+
+
+## Data visualization
+viz6 %>%
+  mutate(source = fct_reorder(source, averagetimedays)) %>%
+ggplot() + 
+   geom_point(aes(x = averagetimedays, y = source, size=totalcount)) + 
+  geom_segment( aes(x=0, xend=averagetimedays, y=source, yend=source), color = "blue") +
+  geom_text(aes(x = averagetimedays, y = source,
+label = round(averagetimedays, 2)), size = 2.5, hjust= -1, family= "Arial") +
+   scale_x_continuous( limits = c(0, 60)) +
+  scale_size_continuous(range = c(0, 5)) + 
+  ylab( "Source") + 
+  xlab( "Days") + 
+  labs(title = "Average time in days to close a case by source",
+       subtitle = "Plot size= according to total number of cases per source ") +
+guides(size=guide_legend("Total number of cases")) + 
+  
+   theme_classic() +
+   theme(
+     plot.title = element_text(face = "bold", size = 16, hjust = 1),
+    plot.subtitle = element_text(face = "italic", size = 14, hjust = 1),
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10, face = "italic"),
+    axis.line = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin=unit(c(0,0.1,0,0),"cm") #top, right, bottom, left
+   ) 
+
+```
+
+
+
+
+
+### In-Class
+
+
+
+
+
+
+```{r}
+df_311 <-df311
+head(df_311)
+
+first_pass <- df_311 %>%
+  filter(case_status=='Closed') %>%
+  mutate(close_time = difftime(closed_dt, open_dt,
+                               units='hours')) %>%
+  group_by(department) %>%
+  summarise(avg_close_time = mean(close_time),
+            med_close_time = median(close_time),
+            n_size=n()) %>%
+  arrange(med_close_time)
+
+first_pass
+
+
+
+
+
+
+
+```
+
+```{r}
+subject_reason_type <- df_311 %>%
+  group_by(subject, reason, type) %>%
+  summarise(n_size = n()) %>%
+  arrange(desc(n_size))
+subject_reason_type
+
+
+dept_reason_type_group <- df_311 %>%
+  filter(case_status=='Closed') %>%
+  mutate(close_time = difftime(closed_dt, open_dt,
+                               units='hours')) %>%
+  group_by(subject, reason, type) %>%
+  summarise(n_size = n(),
+            median_close_time=median(close_time),
+            avg_close_time=mean(close_time)) %>%
+  filter(n_size > 100) %>%
+  arrange(desc(median_close_time))
+
+dept_reason_type_group
+
+```
+
+
+
+
+
+
+```{r}
+###both department level and ticket level information
+department_group <- df_311 %>%
+  filter(case_status=='Closed') %>%
+  mutate(close_time = difftime(closed_dt, open_dt,
+                               units='hours')) %>%
+  group_by(subject) %>%
+  summarise(n_size = n(),
+            dept_median_close_time=median(close_time),
+            avg_close_time=mean(close_time)) %>%
+  arrange(dept_median_close_time)
+
+
+department_group_select <- arrange(department_group, 
+                                   dept_median_close_time) %>%
+  mutate(department_rank = 1:nrow(department_group)) %>%
+  select(subject, department_rank, 
+         dept_median_close_time)
+
+department_group_select
+
+
+joined_df <- dept_reason_type_group %>%
+  left_join(department_group_select,
+            by = 'subject') %>%
+  mutate(
+    diff_dept_queue = 
+      abs(dept_median_close_time - median_close_time)
+  ) %>%
+  arrange(desc(diff_dept_queue))
+
+
+
+
+```
+
+
+
+
+```{r}
+###confounding factors
+source_closetime <- df_311 %>%
+  filter(case_status=='Closed') %>%
+  mutate(close_time = difftime(closed_dt, open_dt,
+                               units='hours')) %>%
+  group_by(source) %>%
+  summarise(n_size = n(),
+            med_close_time=median(close_time)) %>%
+  arrange(med_close_time)
+
+source_closetime
+
+```
+
+
+
+
+
+
+```{r}
+#####linear reg
+
+lm_df <- df_311 %>%
+  filter(case_status=='Closed') %>%
+  mutate(close_time = difftime(closed_dt, open_dt,
+                               units='hours')) %>%
+  mutate(close_time_int = as.numeric(close_time))  %>% 
+  unite(dept_concat, subject:type,remove = FALSE)
+
+
+lm_explore <- lm(close_time_int ~ 
+                   dept_concat + source + neighborhood,
+                 data = lm_df)
+
+lm_explore_df <- map_df(list(summary(lm_explore)), tidy)
+lm_explore_df
+
+significant_coef <- lm_explore_df %>%
+  filter(p.value < 0.05)  %>%
+  arrange(desc(estimate))
+significant_coef
+# lm_explore_b <- lm(close_time_int ~ 
+#                      subject + reason + type + source,
+#                    data = lm_df)
+
+summary(lm_explore_b)
+```
+
