@@ -27,16 +27,17 @@ The final master table is titled "finaldf" and you can find it in line 174.
 
 
 ```{r}
-setwd("~/Downloads/PA 446 Coding Civic Data Applications")
+
 library(readr)
+library(here)
 library(tidyverse)
 library(report) # useful to find statistical significance results
 library(nortest) # normality test 
 
 
-df <- read_csv("Homeworks/HW 2/pa446_chicago_full.csv")
-df_gender<- read.csv("~/Downloads/PA 446 Coding Civic Data Applications/Homeworks/HW 2/IL.Txt", header=FALSE)
-df_race <- read_csv("Class 4 /In-class/census_2010_race.csv")
+df <- read_csv("pa446_chicago_full.csv")
+df_gender<- read.csv("IL.Txt", header=FALSE)
+df_race <- read_csv("census_2010_race.csv")
 
 
 ```
@@ -114,6 +115,12 @@ Clean up race column
 ```{r}
 df_race$pctaian <- as.numeric(df_race$pctaian) # change classes
 df_race$pctblack <- as.numeric(df_race$pctblack)
+df_race$pctwhite <- as.numeric(df_race$pctwhite)
+df_race$pctapi <- as.numeric(df_race$pctapi)
+df_race$pct2prace <- as.numeric(df_race$pct2prace)
+df_race$pcthispanic <- as.numeric(df_race$pcthispanic)
+
+
 
 final_col <- c('name', 'pctwhite', 'pctblack', 'pctapi', 'pctaian', 'pct2prace', 'pcthispanic')
 
@@ -132,6 +139,8 @@ df_long <-
     names_to= 'race', 
     values_to= 'percent'
   )
+
+
 
 # slice max
 
